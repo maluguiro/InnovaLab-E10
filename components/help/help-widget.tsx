@@ -1,7 +1,8 @@
 "use client";
 
-import { MessageCircle, X } from "lucide-react";
+import { ArrowUp, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { MoraMark } from "./mora-mark";
 import type { HelpMessage } from "@/lib/schemas/help/help";
 import {
   createHelpRequestGuard,
@@ -60,6 +61,8 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const loadedRef = useRef(false);
   const requestGuardRef = useRef(createHelpRequestGuard());
 
@@ -80,8 +83,22 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages, open]);
 
-  async function send() {
-    const content = draft.trim();
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    function onEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        requestAnimationFrame(() => launcherRef.current?.focus());
+      }
+    }
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [open]);
+
+  async function send(suggestedQuestion?: string) {
+    const content = (suggestedQuestion ?? draft).trim();
     if (!content || pending) return;
 
     // Visible history keeps every message; only the last turn window travels
@@ -140,81 +157,139 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
     }
   }
 
+  function openAssistant() {
+    loadedRef.current = true;
+    if (userId) setMessages(readHelpThread(sessionStorage, userId));
+    setOpen(true);
+  }
+
+  function closeAssistant() {
+    setOpen(false);
+    requestAnimationFrame(() => launcherRef.current?.focus());
+  }
+
   return (
-    <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3">
+    <div className="pointer-events-none fixed inset-0 z-50 flex flex-col items-end justify-end md:inset-auto md:bottom-6 md:right-6 md:gap-3">
       {open ? (
-        <section
-          aria-label="Ayuda de la aplicación"
-          className="flex h-[28rem] w-[min(24rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-2xl border border-border-default bg-surface shadow-lg"
-        >
-          <header className="flex items-center justify-between border-b border-border-default px-4 py-3">
-            <h2 className="text-base font-semibold text-fg">Ayuda</h2>
-            <button
-              type="button"
-              className="rounded-full p-1 text-fg-muted hover:text-fg"
-              aria-label="Cerrar ayuda"
-              onClick={() => setOpen(false)}
-            >
-              <X aria-hidden="true" size={18} />
-            </button>
-          </header>
-          <div ref={listRef} className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-            {messages.length === 0 ? (
-              <p className="text-sm text-fg-muted">
-                Preguntame qué hace la aplicación, qué significa un término o qué beneficio te da.
-              </p>
-            ) : null}
-            {messages.map((message, index) => (
-              <HelpMessageItem
-                key={`${message.role}-${index}`}
-                message={message}
-                streaming={pending}
-              />
-            ))}
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
-          </div>
-          <form
-            className="flex gap-2 border-t border-border-default p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void send();
-            }}
+        <>
+          <div aria-hidden="true" className="pointer-events-auto fixed inset-0 bg-black/25 md:hidden" />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mora-dialog-title"
+            aria-describedby="mora-dialog-description"
+            className="pointer-events-auto relative flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-surface text-fg shadow-2xl md:h-[min(35rem,calc(100dvh-7rem))] md:w-[min(25rem,calc(100vw-3rem))] md:rounded-2xl md:border md:border-border-default"
           >
-            <label className="sr-only" htmlFor="help-question">
-              Pregunta
-            </label>
-            <input
-              id="help-question"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              disabled={pending}
-              placeholder="Escribí tu pregunta"
-              className="min-h-11 flex-1 rounded-[14px] border border-border-control bg-surface px-3 text-sm text-fg"
-            />
-            <button
-              type="submit"
-              disabled={pending || draft.trim().length === 0}
-              className="min-h-11 rounded-[14px] bg-action-primary px-4 text-sm font-semibold text-on-action-primary disabled:cursor-not-allowed disabled:bg-action-disabled disabled:text-fg-disabled"
+            <header className="flex shrink-0 items-center gap-3 border-b border-border-default bg-surface-tint px-4 py-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+                <MoraMark className="h-10 w-9" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 id="mora-dialog-title" className="text-base font-bold text-fg">
+                  Mora
+                </h2>
+                <p id="mora-dialog-description" className="text-xs text-fg-muted">
+                  Tu asistente de Numora
+                </p>
+              </div>
+              <button
+                type="button"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-action-tonal hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                aria-label="Cerrar Mora"
+                onClick={closeAssistant}
+              >
+                <X aria-hidden="true" size={20} />
+              </button>
+            </header>
+            <div
+              ref={listRef}
+              role="log"
+              aria-label="Mensajes de Mora"
+              aria-live="polite"
+              aria-relevant="additions text"
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-5"
             >
-              Enviar
-            </button>
-          </form>
-        </section>
+              {messages.length === 0 ? (
+                <div className="flex flex-col gap-4 py-5">
+                  <div className="max-w-xs space-y-2">
+                    <h3 className="text-xl font-semibold tracking-tight text-fg">
+                      ¡Hola! Soy Mora.
+                    </h3>
+                    <p className="text-sm leading-relaxed text-fg-muted">
+                      Te ayudo a entender tus costos, precios y las herramientas de Numora.
+                    </p>
+                    <p className="text-sm font-medium text-fg">¿Por dónde empezamos?</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2" aria-label="Preguntas sugeridas">
+                    {[
+                      "¿Qué es el margen?",
+                      "¿Cómo calculo mis costos?",
+                      "¿Qué es el punto de equilibrio?",
+                    ].map((question) => (
+                      <button
+                        key={question}
+                        type="button"
+                        disabled={pending}
+                        onClick={() => void send(question)}
+                        className="min-h-11 rounded-full border border-border-default bg-surface-tint px-3 py-2 text-left text-xs font-medium text-fg transition-colors hover:border-action-primary hover:bg-action-tonal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {messages.map((message, index) => (
+                <HelpMessageItem
+                  key={`${message.role}-${index}`}
+                  message={message}
+                  streaming={pending}
+                />
+              ))}
+              {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
+            </div>
+            <form
+              className="flex shrink-0 items-center gap-2 border-t border-border-default bg-surface px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void send();
+              }}
+            >
+              <label className="sr-only" htmlFor="help-question">Pregunta para Mora</label>
+              <input
+                ref={inputRef}
+                id="help-question"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                disabled={pending}
+                placeholder="Escribí tu pregunta"
+                className="min-h-12 min-w-0 flex-1 rounded-xl border border-border-control bg-surface px-3 text-base text-fg placeholder:text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:text-sm"
+              />
+              <button
+                type="submit"
+                aria-label="Enviar pregunta"
+                disabled={pending || draft.trim().length === 0}
+                className="flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-action-primary text-on-action-primary transition-colors hover:bg-action-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-action-disabled disabled:text-fg-disabled"
+              >
+                <ArrowUp aria-hidden="true" size={20} />
+              </button>
+            </form>
+          </section>
+        </>
       ) : null}
       <button
+        ref={launcherRef}
         type="button"
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-action-primary text-on-action-primary shadow-lg"
         aria-expanded={open}
-        aria-label={open ? "Cerrar ayuda" : "Abrir ayuda"}
+        aria-label={open ? "Cerrar Mora" : "Abrir ayuda de Mora"}
+        aria-controls={open ? "mora-dialog-title" : undefined}
+        className={`pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-xl ring-1 ring-border-default transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-reduce:transform-none md:static ${open ? "hidden md:flex" : ""}`}
         onClick={() => {
-          if (!open) {
-            loadedRef.current = true;
-            if (userId) setMessages(readHelpThread(sessionStorage, userId));
-          }
-          setOpen((value) => !value);
+          if (open) closeAssistant();
+          else openAssistant();
         }}
       >
-        {open ? <X aria-hidden="true" /> : <MessageCircle aria-hidden="true" />}
+        {open ? <X aria-hidden="true" size={24} /> : <MoraMark className="h-14 w-12" />}
       </button>
     </div>
   );
