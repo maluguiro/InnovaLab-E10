@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { HelpMessageItem, HelpWidget } from "./help-widget";
+import { HelpMessageItem, HelpWidget, MoraWelcome, MORA_SUGGESTED_QUESTIONS } from "./help-widget";
 
 function render(element: React.ReactElement): string {
   return renderToStaticMarkup(element);
@@ -19,6 +19,24 @@ describe("HelpWidget", () => {
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('viewBox="0 0 64 72"');
     expect(html).toContain('aria-hidden="true"');
+  });
+});
+
+describe("MoraWelcome", () => {
+  it("shows Mora's introduction and three actionable suggestions", () => {
+    const html = render(createElement(MoraWelcome, { onSelect: () => {} }));
+    expect(html).toContain("¡Hola! Soy Mora.");
+    expect(html).toContain("Te ayudo a entender tus costos");
+    expect(MORA_SUGGESTED_QUESTIONS).toHaveLength(3);
+    for (const question of MORA_SUGGESTED_QUESTIONS) {
+      expect(html).toContain(question);
+    }
+    expect(html.match(/type="button"/g)).toHaveLength(3);
+  });
+
+  it("disables suggested questions while waiting for a response", () => {
+    const html = render(createElement(MoraWelcome, { onSelect: () => {}, disabled: true }));
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
   });
 });
 
