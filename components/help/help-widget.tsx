@@ -17,6 +17,47 @@ import {
 } from "@/lib/help/thread";
 import { HelpMarkdown } from "./help-markdown";
 
+export const MORA_SUGGESTED_QUESTIONS = [
+  "¿Qué es el margen?",
+  "¿Cómo calculo mis costos?",
+  "¿Qué es el punto de equilibrio?",
+] as const;
+
+export function MoraWelcome({
+  onSelect,
+  disabled = false,
+}: {
+  onSelect: (question: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-4 py-5">
+      <div className="max-w-xs space-y-2">
+        <h3 className="text-xl font-semibold tracking-tight text-fg">
+          ¡Hola! Soy Mora.
+        </h3>
+        <p className="text-sm leading-relaxed text-fg-muted">
+          Te ayudo a entender tus costos, precios y las herramientas de Numora.
+        </p>
+        <p className="text-sm font-medium text-fg">¿Por dónde empezamos?</p>
+      </div>
+      <div className="flex flex-wrap gap-2" aria-label="Preguntas sugeridas">
+        {MORA_SUGGESTED_QUESTIONS.map((question) => (
+          <button
+            key={question}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(question)}
+            className="min-h-11 rounded-full border border-border-default bg-surface-tint px-3 py-2 text-left text-xs font-medium text-fg transition-colors hover:border-action-primary hover:bg-action-tonal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
+          >
+            {question}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type HelpWidgetProps = {
   enabled: boolean;
   userId: string | null;
@@ -38,13 +79,13 @@ export function HelpMessageItem({
 }) {
   if (message.role === "user") {
     return (
-      <p className="max-w-[85%] self-end rounded-2xl bg-action-primary px-3 py-2 text-sm text-on-action-primary">
+      <p className="max-w-[85%] break-words self-end rounded-2xl bg-action-primary px-3 py-2 text-sm text-on-action-primary">
         {message.content}
       </p>
     );
   }
   return (
-    <div className="max-w-[85%] self-start rounded-2xl bg-surface-tint px-3 py-2 text-sm text-fg">
+    <div className="max-w-[85%] min-w-0 break-words self-start rounded-2xl bg-surface-tint px-3 py-2 text-sm text-fg">
       {message.content ? (
         <HelpMarkdown content={message.content} />
       ) : streaming ? (
@@ -63,6 +104,7 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const loadedRef = useRef(false);
   const requestGuardRef = useRef(createHelpRequestGuard());
 
@@ -86,6 +128,8 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     function onEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -94,7 +138,10 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
       }
     }
     window.addEventListener("keydown", onEscape);
-    return () => window.removeEventListener("keydown", onEscape);
+    return () => {
+      window.removeEventListener("keydown", onEscape);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open]);
 
   async function send(suggestedQuestion?: string) {
@@ -157,6 +204,25 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
     }
   }
 
+  function trapDialogTab(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab" || !dialogRef.current) return;
+    const focusables = Array.from(
+      dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   function openAssistant() {
     loadedRef.current = true;
     if (userId) setMessages(readHelpThread(sessionStorage, userId));
@@ -174,6 +240,9 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
         <>
           <div aria-hidden="true" className="pointer-events-auto fixed inset-0 bg-black/25 md:hidden" />
           <section
+            ref={dialogRef}
+            id="mora-dialog"
+            onKeyDown={trapDialogTab}
             role="dialog"
             aria-modal="true"
             aria-labelledby="mora-dialog-title"
@@ -210,34 +279,7 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
               className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-5"
             >
               {messages.length === 0 ? (
-                <div className="flex flex-col gap-4 py-5">
-                  <div className="max-w-xs space-y-2">
-                    <h3 className="text-xl font-semibold tracking-tight text-fg">
-                      ¡Hola! Soy Mora.
-                    </h3>
-                    <p className="text-sm leading-relaxed text-fg-muted">
-                      Te ayudo a entender tus costos, precios y las herramientas de Numora.
-                    </p>
-                    <p className="text-sm font-medium text-fg">¿Por dónde empezamos?</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2" aria-label="Preguntas sugeridas">
-                    {[
-                      "¿Qué es el margen?",
-                      "¿Cómo calculo mis costos?",
-                      "¿Qué es el punto de equilibrio?",
-                    ].map((question) => (
-                      <button
-                        key={question}
-                        type="button"
-                        disabled={pending}
-                        onClick={() => void send(question)}
-                        className="min-h-11 rounded-full border border-border-default bg-surface-tint px-3 py-2 text-left text-xs font-medium text-fg transition-colors hover:border-action-primary hover:bg-action-tonal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
-                      >
-                        {question}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <MoraWelcome disabled={pending} onSelect={(question) => void send(question)} />
               ) : null}
               {messages.map((message, index) => (
                 <HelpMessageItem
@@ -282,7 +324,7 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
         type="button"
         aria-expanded={open}
         aria-label={open ? "Cerrar Mora" : "Abrir ayuda de Mora"}
-        aria-controls={open ? "mora-dialog-title" : undefined}
+        aria-controls={open ? "mora-dialog" : undefined}
         className={`pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-xl ring-1 ring-border-default transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-reduce:transform-none md:static ${open ? "hidden md:flex" : ""}`}
         onClick={() => {
           if (open) closeAssistant();
