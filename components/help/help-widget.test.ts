@@ -15,8 +15,10 @@ describe("HelpWidget", () => {
 
   it("renders the launcher button for a signed-in user", () => {
     const html = render(createElement(HelpWidget, { enabled: true, userId: "user-a" }));
-    expect(html).toContain('aria-label="Abrir ayuda"');
+    expect(html).toContain('aria-label="Abrir ayuda de Mora"');
     expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('viewBox="0 0 64 72"');
+    expect(html).toContain('aria-hidden="true"');
   });
 });
 
