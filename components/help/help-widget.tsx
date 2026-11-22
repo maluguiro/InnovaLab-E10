@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, X } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MoraMark } from "./mora-mark";
 import type { HelpMessage } from "@/lib/schemas/help/help";
 import {
@@ -204,7 +204,7 @@ function HelpWidgetSession({ userId }: Pick<HelpWidgetProps, "userId">) {
     }
   }
 
-  function trapDialogTab(event: KeyboardEvent<HTMLElement>) {
+  function trapDialogTab(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key !== "Tab" || !dialogRef.current) return;
     const focusables = Array.from(
       dialogRef.current.querySelectorAll<HTMLElement>(
